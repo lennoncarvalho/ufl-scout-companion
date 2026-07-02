@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UFL Scout Companion — Stat Profiles</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <header class="uflx-opt-header">
+    <h1>UFL Scout Companion</h1>
+    <p class="uflx-opt-sub">Create and edit the stat profiles that power the <em>Custom stats</em> column.</p>
+  </header>
+
+  <div id="uflx-opt-warning" class="uflx-opt-warning" hidden></div>
+
+  <main class="uflx-opt-main">
+    <section class="uflx-opt-col uflx-opt-col--list">
+      <div class="uflx-opt-col-head">
+        <h2>Profiles</h2>
+        <button id="uflx-new-profile" type="button" class="uflx-btn uflx-btn--primary">+ New</button>
+      </div>
+      <ul id="uflx-profile-list" class="uflx-profile-list"></ul>
+      <div class="uflx-opt-col-foot">
+        <button id="uflx-reset-defaults" type="button" class="uflx-btn">Reset default profiles</button>
+      </div>
+    </section>
+
+    <section class="uflx-opt-col uflx-opt-col--editor">
+      <div class="uflx-opt-col-head">
+        <h2 id="uflx-editor-title">Select a profile</h2>
+        <span id="uflx-editor-count" class="uflx-editor-count"></span>
+      </div>
+      <div id="uflx-editor" class="uflx-editor"></div>
+    </section>
+  </main>
+
+  <!-- Shared classic scripts (no modules, no inline JS — CSP compliant). Load order matters. -->
+  <script src="../shared/uflxNamespace.js"></script>
+  <script src="../shared/statMath.js"></script>
+  <script src="../shared/messages.js"></script>
+  <script src="../shared/storageKeys.js"></script>
+  <script src="../shared/defaultProfiles.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

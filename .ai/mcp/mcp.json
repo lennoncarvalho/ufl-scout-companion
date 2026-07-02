@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "export PATH=/opt/homebrew/bin:$PATH; exec npx -y chrome-devtools-mcp@latest --autoConnect"
+      ]
+    }
+  }
+}

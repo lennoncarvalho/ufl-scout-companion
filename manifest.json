@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "UFL Scout Companion",
+  "version": "0.1.0",
+  "description": "Augments uflscout.com with a player selection list, a sortable/filterable comparison modal, and reusable position-based stat profiles.",
+  "minimum_chrome_version": "120",
+  "permissions": [
+    "storage",
+    "tabs",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "https://uflscout.com/*"
+  ],
+  "action": {},
+  "options_page": "options/options.html",
+  "background": {
+    "service_worker": "background/sw.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://uflscout.com/*"],
+      "js": [
+        "shared/uflxNamespace.js",
+        "shared/statMath.js",
+        "shared/messages.js",
+        "shared/storageKeys.js",
+        "shared/cardIds.js",
+        "content/cardDecorator.js",
+        "content/comparisonModal.js",
+        "content/comparePageDecorator.js",
+        "content/uflx.js"
+      ],
+      "css": ["content/uflx.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

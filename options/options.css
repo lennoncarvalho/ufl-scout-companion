@@ -1,0 +1,173 @@
+:root {
+  --bg: #0f1729;
+  --panel: #131c31;
+  --panel-2: #17223a;
+  --border: #24304a;
+  --text: #e6ebf5;
+  --muted: #9fb0cc;
+  --accent: #2563eb;
+  --accent-2: #38e08b;
+  --danger: #ef4444;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.uflx-opt-header {
+  padding: 22px 28px 8px;
+}
+.uflx-opt-header h1 { margin: 0; font-size: 22px; }
+.uflx-opt-sub { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+.uflx-opt-sub em { color: #7dd3fc; font-style: normal; }
+
+.uflx-opt-warning {
+  margin: 12px 28px 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fecaca;
+  font-size: 13px;
+}
+
+.uflx-opt-main {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 20px;
+  padding: 18px 28px 32px;
+  align-items: start;
+}
+
+.uflx-opt-col {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.uflx-opt-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-2);
+}
+.uflx-opt-col-head h2 { margin: 0; font-size: 15px; }
+.uflx-editor-count { color: var(--muted); font-size: 12px; }
+
+.uflx-opt-col-foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* profile list */
+.uflx-profile-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.uflx-profile-item {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 6px;
+  background: #101a2e;
+}
+.uflx-profile-item.is-selected { border-color: var(--accent); }
+.uflx-profile-item.is-active { box-shadow: inset 3px 0 0 var(--accent-2); }
+
+.uflx-profile-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.uflx-profile-name-text { flex: 1 1 auto; }
+
+.uflx-badge-default,
+.uflx-badge-active {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+.uflx-badge-default { background: #24304a; color: #aebbd6; }
+.uflx-badge-active { background: var(--accent-2); color: #0b1220; }
+
+.uflx-profile-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* buttons */
+.uflx-btn {
+  border: 1px solid var(--border);
+  background: #0f1729;
+  color: var(--text);
+  border-radius: 7px;
+  padding: 7px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.uflx-btn:hover { border-color: #3d517d; }
+.uflx-btn:disabled { opacity: 0.45; cursor: default; }
+.uflx-btn--sm { padding: 4px 9px; font-size: 12px; }
+.uflx-btn--primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.uflx-btn--primary:hover { background: #1d4ed8; }
+.uflx-btn--danger { color: #fecaca; border-color: rgba(239, 68, 68, 0.5); }
+.uflx-btn--danger:hover { background: rgba(239, 68, 68, 0.15); }
+
+/* editor */
+.uflx-editor { padding: 12px 16px 18px; }
+.uflx-editor-empty { color: var(--muted); padding: 24px 4px; }
+
+.uflx-stat-group { margin-bottom: 16px; }
+.uflx-stat-group-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #7f92b3;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #1c2740;
+  padding-bottom: 4px;
+}
+
+.uflx-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 6px 12px;
+}
+
+.uflx-stat-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #cdd8ee;
+  cursor: pointer;
+  padding: 3px 4px;
+  border-radius: 6px;
+}
+.uflx-stat-label:hover { background: rgba(255, 255, 255, 0.04); }
+.uflx-stat-cb { width: 15px; height: 15px; accent-color: var(--accent-2); }

@@ -1,0 +1,9 @@
+{
+  "name": "ufl-scout-companion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome MV3 extension that augments uflscout.com with a selection list, comparison modal, and stat profiles.",
+  "scripts": {
+    "test": "node --test test/"
+  }
+}
