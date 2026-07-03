@@ -205,11 +205,20 @@
   min-width: 160px;
 }
 
-#uflx-modal-root .uflx-modal-card-img {
-  width: 34px;
-  height: 46px;
-  object-fit: contain;
-  flex: 0 0 auto;
+#uflx-modal-root .uflx-modal-img-holder {
+  width: 49px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 43px;
+  overflow: hidden;
+  border: 0;
+
+  .uflx-modal-card-img {
+    height: 114%;
+    width: auto;
+    object-position: center;
+  }
 }
 
 #uflx-modal-root .uflx-modal-name { font-weight: 600; }

@@ -10,19 +10,17 @@
     { key: '__toggle', label: '', sortable: false },
     { key: 'name', label: 'Player', sortable: true },
     { key: 'rating', label: 'Rating', sortable: true },
-    { key: 'position', label: 'Position', sortable: true },
-    { key: 'promo', label: 'Promo', sortable: true },
-    { key: 'mastery', label: 'Mastery', sortable: true }
+    { key: 'position', label: 'Position', sortable: true }
   ];
 
   var state = {
     open: false,
-    rows: [],            // [{ id, name, rating, position, promo, mastery, image, stats, inGame, custom, _player }]
+    rows: [],            // [{ id, name, rating, position, image, stats, inGame, custom, _player }]
     statKeys: [],        // union of discovered stat keys across all rows
     profiles: {},        // Record<id, Profile>
     activeProfileId: '',
     sort: { key: 'inGame', dir: 'desc' },
-    filters: { position: new Set(), promo: new Set(), mastery: new Set() },
+    filters: { position: new Set() },
     prevOverflow: '',
     keydownHandler: null
   };
@@ -66,15 +64,6 @@
     return v == null ? '\u2014' : String(Math.round(v));
   }
 
-  // "mastery3" -> "Mastery 3", "base" -> "Base" (falls back to the raw value for anything else).
-  function humanizeMastery(v) {
-    if (v == null || v === '') return '';
-    var s = String(v);
-    var m = /^mastery(\d+)$/i.exec(s);
-    if (m) return 'Mastery ' + m[1];
-    return s.charAt(0).toUpperCase() + s.slice(1);
-  }
-
   // Ensure a usable absolute URL for a card render (the API sometimes returns a relative path).
   function normalizeImage(src) {
     if (!src) return '';
@@ -88,16 +77,12 @@
     var p = player || {};
     var pos = pick(p, ['position', 'pos', 'mainPosition']);
     if (pos == null && Array.isArray(p.positions) && p.positions.length) pos = p.positions[0];
-    var promo = pick(p, ['promoDisplayName', 'promo_display_name', 'promoName', 'promo_name', 'promo']);
-    var mastery = pick(p, ['masteryType', 'mastery_type', 'mastery', 'tier', 'masteryTier']);
     return {
       id: id,
       // Prefer the card label ("VALVERDE"), then the display name, then the full name.
       name: pick(p, ['cardName', 'card_name', 'ckaName', 'cka_name', 'displayName', 'shortName', 'knownAs', 'name', 'fullName']) || ('#' + id),
       rating: toNumber(pick(p, ['rating', 'overall', 'ovr'])),
       position: pos != null ? String(pos) : '',
-      promo: promo != null ? String(promo) : '',
-      mastery: humanizeMastery(mastery),
       image: normalizeImage(pick(p, ['masteryCustomImageUrl', 'mastery_custom_image_url', 'imageUrl', 'image_url', 'cardImage', 'image', 'cardUrl', 'card', 'staticCard']))
     };
   }
@@ -132,8 +117,6 @@
         name: meta.name,
         rating: meta.rating,
         position: meta.position,
-        promo: meta.promo,
-        mastery: meta.mastery,
         image: meta.image,
         stats: stats,
         inGame: root.statMath.inGameSum(player),
@@ -143,7 +126,9 @@
     });
 
     state.rows = rows;
-    state.statKeys = Array.from(keySet).sort();
+    // Drop unwanted columns (GK stats, promo/alt-id metadata) and de-duplicate
+    // snake_case/camelCase pairs before sorting for display.
+    state.statKeys = root.statMath.displayStatKeys(Array.from(keySet).sort());
   }
 
   function distinctValues(field) {
@@ -154,7 +139,7 @@
 
   function applyFilters(rows) {
     return rows.filter(function (r) {
-      return ['position', 'promo', 'mastery'].every(function (f) {
+      return ['position'].every(function (f) {
         var sel = state.filters[f];
         return sel.size === 0 || sel.has(String(r[f]));
       });
@@ -202,7 +187,7 @@
     var custLabel = 'Custom' + (prof ? ' (' + prof.name + ')' : '');
     tr.appendChild(headerCell('custom', custLabel, true));
 
-    // Remaining descriptive columns (Player, Rating, Position, Promo, Mastery).
+    // Remaining descriptive columns (Player, Rating, Position).
     LEAD_COLS.slice(1).forEach(function (c) { tr.appendChild(headerCell(c.key, c.label, c.sortable)); });
 
     // Then the individual stat-key columns.
@@ -213,10 +198,15 @@
   }
 
   function buildRow(row) {
-    var tr = el('tr', { 'data-id': String(row.id) });
+    const tr = el('tr', {'data-id': String(row.id)});
 
     // toggle (−) cell
-    var rm = el('button', { class: 'uflx-row-remove', type: 'button', title: 'Remove from selection', 'aria-label': 'Remove from selection' }, ['\u2212']);
+    const rm = el('button', {
+      class: 'uflx-row-remove',
+      type: 'button',
+      title: 'Remove from selection',
+      'aria-label': 'Remove from selection'
+    }, ['\u2212']);
     rm.addEventListener('click', function () { onRemove(row.id); });
     tr.appendChild(el('td', { class: 'uflx-td uflx-td--toggle' }, [rm]));
 
@@ -225,19 +215,18 @@
     tr.appendChild(el('td', { class: 'uflx-td uflx-td--agg' }, [fmt(row.custom)]));
 
     // player cell (image if available, else name)
-    var playerCellChildren = [];
+    const playerCellChildren = [];
     if (row.image) {
-      var img = el('img', { class: 'uflx-modal-card-img', src: row.image, alt: row.name, loading: 'lazy' });
+      const img = el('img', {class: 'uflx-modal-card-img', src: row.image, alt: row.name, loading: 'lazy'});
       img.addEventListener('error', function () { img.style.display = 'none'; });
-      playerCellChildren.push(img);
+      const imgContainer = el('div', {class: 'uflx-modal-img-holder'}, [img]);
+      playerCellChildren.push(imgContainer);
     }
     playerCellChildren.push(el('span', { class: 'uflx-modal-name', text: row.name }));
     tr.appendChild(el('td', { class: 'uflx-td uflx-td--player' }, playerCellChildren));
 
     tr.appendChild(el('td', { class: 'uflx-td' }, [fmt(row.rating)]));
     tr.appendChild(el('td', { class: 'uflx-td' }, [row.position || '\u2014']));
-    tr.appendChild(el('td', { class: 'uflx-td' }, [row.promo || '\u2014']));
-    tr.appendChild(el('td', { class: 'uflx-td' }, [row.mastery || '\u2014']));
 
     state.statKeys.forEach(function (k) {
       var v = row.stats[k];
@@ -249,7 +238,7 @@
 
   function renderChips(container) {
     container.innerHTML = '';
-    ['position', 'promo', 'mastery'].forEach(function (field) {
+    ['position'].forEach(function (field) {
       var values = distinctValues(field);
       if (!values.length) return;
       var group = el('div', { class: 'uflx-filter-group' }, [

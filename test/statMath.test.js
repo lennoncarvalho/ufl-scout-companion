@@ -8,7 +8,7 @@ require('../shared/statMath.js');
 const statMath = globalThis.uflx.statMath;
 
 test('discoverStatKeys prefers a nested stat container and ignores metadata', () => {
-  const player = { id: 999, rating: 90, stats: { pace: 80, shooting: 70, passing: 60 } };
+  const player = { id: 999, rating: 90, detailedStats: { pace: 80, shooting: 70, passing: 60 } };
   assert.deepEqual(statMath.discoverStatKeys(player), ['pace', 'passing', 'shooting']);
 });
 
@@ -18,8 +18,67 @@ test('discoverStatKeys falls back to top-level numerics, excluding non-stat keys
 });
 
 test('inGameSum sums every discovered stat (container case)', () => {
-  const player = { id: 1, rating: 99, stats: { pace: 80, shooting: 70, passing: 60 } };
+  const player = { id: 1, rating: 99, detailedStats: { pace: 80, shooting: 70, passing: 60 } };
   assert.equal(statMath.inGameSum(player), 210);
+});
+
+test('resolveStatDict reads detailedStats string leaves and discards the 6-value stats aggregate', () => {
+  // Mirrors the /api/players-public/{id} shape: numeric-string leaves nested under categories,
+  // a null goalkeeper branch, and the aggregate `stats` that must NOT be summed or shown.
+  const player = {
+    stats: { def: 90, drb: 70, fit: 85, pac: 83, pas: 84, sho: 66 },
+    detailedStats: {
+      pace: { sprintSpeed: '83', acceleration: '82' },
+      defending: { tackles: '90', interceptions: '90' },
+      dribbling: { agility: '64', composure: '80', ballControl: '82' },
+      goalkeeper: null
+    }
+  };
+  const dict = statMath.resolveStatDict(player);
+  assert.deepEqual(dict, {
+    sprintSpeed: 83, acceleration: 82,
+    tackles: 90, interceptions: 90,
+    agility: 64, composure: 80, ballControl: 82
+  });
+  // The 6-value aggregate (def/drb/fit/pac/pas/sho) is bypassed entirely.
+  assert.equal('def' in dict, false);
+  assert.equal('sho' in dict, false);
+  assert.equal(statMath.inGameSum(player), 83 + 82 + 90 + 90 + 64 + 80 + 82);
+});
+
+test('resolveStatDict canonicalises a bare `positioning` leaf by its parent category', () => {
+  // 69457-style payload: shooting uses the bare `positioning` spelling.
+  const bare = {
+    detailedStats: {
+      shooting: { finishing: 98, positioning: 95 },
+      defending: { tackles: 65, positioning: 75 }
+    }
+  };
+  const dict = bare.detailedStats && statMath.resolveStatDict(bare);
+  assert.equal(dict.attackPositioning, 95);
+  assert.equal(dict.defensivePositioning, 75);
+  // The ambiguous bare `positioning` key must NOT survive as its own column.
+  assert.equal('positioning' in dict, false);
+});
+
+test('resolveStatDict keeps the explicit attack/defensive positioning spellings', () => {
+  // 57232-style payload: shooting uses the explicit `attackPositioning` spelling.
+  const explicit = {
+    detailedStats: {
+      shooting: { finishing: 91, attackPositioning: 90 },
+      defending: { tackles: 88, defensivePositioning: 86 }
+    }
+  };
+  const dict = statMath.resolveStatDict(explicit);
+  assert.equal(dict.attackPositioning, 90);
+  assert.equal(dict.defensivePositioning, 86);
+  assert.equal('positioning' in dict, false);
+});
+
+test('displayStatKeys yields a single positioning column per category (no bare `positioning`)', () => {
+  // Union across a bare-spelling card and an explicit-spelling card resolves to just two columns.
+  const keys = ['finishing', 'attackPositioning', 'defensivePositioning', 'tackles'];
+  assert.deepEqual(statMath.displayStatKeys(keys), keys);
 });
 
 test('inGameSum sums fallback numerics and ignores id/rating', () => {
@@ -33,12 +92,12 @@ test('inGameSum of an empty/invalid player is 0', () => {
 });
 
 test('profileSum adds only the requested keys; missing keys count as 0', () => {
-  const player = { stats: { speed: 90, stamina: 70, strength: 80 } };
+  const player = { detailedStats: { speed: 90, stamina: 70, strength: 80 } };
   assert.equal(statMath.profileSum(player, ['speed', 'stamina', 'doesNotExist']), 160);
 });
 
 test('profileSum of an empty statKeys array is 0 (no crash)', () => {
-  const player = { stats: { speed: 90, stamina: 70, strength: 80 } };
+  const player = { detailedStats: { speed: 90, stamina: 70, strength: 80 } };
   assert.equal(statMath.profileSum(player, []), 0);
   assert.equal(statMath.profileSum(player, null), 0);
 });
@@ -81,6 +140,28 @@ test('humanizeStatKey formats camelCase and gk prefixes', () => {
   assert.equal(statMath.humanizeStatKey('sprintSpeed'), 'Sprint Speed');
   assert.equal(statMath.humanizeStatKey('gkDiving'), 'GK Diving');
   assert.equal(statMath.humanizeStatKey('short_passing'), 'Short Passing');
+});
+
+test('isExcludedStatKey hides GK stats and promo/alt-id metadata', () => {
+  assert.equal(statMath.isExcludedStatKey('gkDiving'), true);
+  assert.equal(statMath.isExcludedStatKey('gk_reflexes'), true);
+  assert.equal(statMath.isExcludedStatKey('diving'), true);
+  assert.equal(statMath.isExcludedStatKey('alternativePlayerId'), true);
+  assert.equal(statMath.isExcludedStatKey('alternative_player_id'), true);
+  assert.equal(statMath.isExcludedStatKey('promoId'), true);
+  assert.equal(statMath.isExcludedStatKey('sprintSpeed'), false);
+  assert.equal(statMath.isExcludedStatKey('weakFoot'), false);
+});
+
+test('displayStatKeys drops excluded keys for the comparison columns', () => {
+  const keys = ['sprintSpeed', 'gkDiving', 'gkHandling', 'alternativePlayerId', 'promoId', 'strength'];
+  assert.deepEqual(statMath.displayStatKeys(keys), ['sprintSpeed', 'strength']);
+});
+
+test('displayStatKeys de-duplicates snake_case/camelCase pairs, preferring camelCase', () => {
+  assert.deepEqual(statMath.displayStatKeys(['weak_foot', 'weakFoot']), ['weakFoot']);
+  assert.deepEqual(statMath.displayStatKeys(['weakFoot', 'weak_foot']), ['weakFoot']);
+  assert.deepEqual(statMath.displayStatKeys(['sprint_speed', 'sprintSpeed', 'strength']), ['sprintSpeed', 'strength']);
 });
 
 test('groupStatKeys buckets known keys and puts unknowns in Other', () => {

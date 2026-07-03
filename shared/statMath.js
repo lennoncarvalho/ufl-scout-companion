@@ -4,15 +4,17 @@
 (function (root) {
   'use strict';
 
-  // Candidate keys that usually hold the per-stat dictionary inside /api/players/{id}.
-  // `detailed_stats`/`detailedStats` come first: the UFL Scout API nests the real per-stat
-  // values (pace/fitness/passing/shooting/defending/dribbling → leaf numbers) there. Without
-  // it the fallback path would sum every top-level numeric — including non-stats like
-  // `alternative_player_id`, `promo_id` and the aggregate ratings (pac/sho/...) — producing a
-  // wildly inflated total (e.g. 71988 instead of 2072 for card 69361).
+  // Candidate keys that usually hold the per-stat dictionary inside /api/players-public/{id}.
+  // `detailedStats`/`detailed_stats` come first: the UFL Scout API nests the real per-stat
+  // values (pace/fitness/passing/shooting/defending/dribbling → leaf numbers) there, and the
+  // public endpoint returns those leaves as numeric *strings* (e.g. "83"), so they are coerced
+  // on collection. The players-public payload also carries a 6-value aggregate `stats`
+  // ({ def, drb, fit, pac, pas, sho }) that must NOT be summed or shown — preferring
+  // detailedStats (which yields ≥3 leaves) means that aggregate is naturally bypassed. Without
+  // this the total is wildly inflated (e.g. the bogus 69664 for card 33462).
   var STAT_CONTAINER_KEYS = [
-    'detailed_stats', 'detailedStats',
-    'stats', 'attributes', 'statistics', 'skills', 'abilities',
+    'detailedStats', 'detailed_stats',
+    'attributes', 'statistics', 'skills', 'abilities',
     'attributeValues', 'ingameStats', 'inGameStats'
   ];
 
@@ -24,13 +26,79 @@
     'createdAt', 'updatedAt', 'timestamp', 'fetchedAt', 'addedAt'
   ]);
 
+  // Stat keys that must never be shown as comparison-table columns:
+  //  - goalkeeper stats (any `gk*` key plus the bare goalkeeper leaves), which are meaningless
+  //    for the outfield players being compared;
+  //  - identity/promo metadata that the dual-format /api/players payload leaks in as numerics
+  //    (e.g. alternative_player_id / alternativePlayerId, promo_id / promoId).
+  // Keys are compared in a normalised form (lower-cased, separators stripped) so both the
+  // snake_case and camelCase spellings are caught.
+  var EXCLUDED_DISPLAY_KEYS = new Set([
+    'diving', 'handling', 'kicking', 'reflexes',
+    'alternativeplayerid', 'promoid'
+  ]);
+
+  // Normalise a stat key for duplicate detection / exclusion matching:
+  // 'weak_foot' and 'weakFoot' both collapse to 'weakfoot'.
+  function normalizeStatKey(key) {
+    return String(key).toLowerCase().replace(/[_\s-]+/g, '');
+  }
+
+  // Canonicalise a leaf stat key using its parent category. The players-public payload nests a
+  // `positioning` leaf under BOTH the `shooting` (attack) and `defending` categories, but names
+  // it inconsistently: some cards use the explicit `attackPositioning` / `defensivePositioning`
+  // spelling, others just `positioning`. Flattening by raw leaf-key therefore produced up to
+  // three positioning columns (attackPositioning / positioning / defensivePositioning) and left
+  // the Attack Positioning cell empty for cards that used the bare `positioning` spelling. We
+  // resolve the bare `positioning` leaf to the category-specific key so a single, always-filled
+  // column remains per category.
+  function canonicalLeafKey(parentKey, leafKey) {
+    if (normalizeStatKey(leafKey) === 'positioning') {
+      var p = normalizeStatKey(parentKey);
+      if (p === 'shooting' || p === 'attack' || p === 'attacking') return 'attackPositioning';
+      if (p === 'defending' || p === 'defense' || p === 'defence') return 'defensivePositioning';
+    }
+    return leafKey;
+  }
+
+  // True when a key should be hidden from the comparison table (GK stats + promo/alt-id metadata).
+  function isExcludedStatKey(key) {
+    var norm = normalizeStatKey(key);
+    return norm.indexOf('gk') === 0 || EXCLUDED_DISPLAY_KEYS.has(norm);
+  }
+
+  // Column key list for the comparison table: drops excluded keys and de-duplicates the
+  // snake_case/camelCase pairs (e.g. weak_foot vs weakFoot) that the dual-format payload emits,
+  // preferring the camelCase spelling. Order of first appearance is preserved.
+  function displayStatKeys(keys) {
+    var seen = new Set();
+    var out = [];
+    (Array.isArray(keys) ? keys : []).forEach(function (key) {
+      if (isExcludedStatKey(key)) return;
+      var norm = normalizeStatKey(key);
+      var camel = String(key).indexOf('_') === -1 && String(key).indexOf('-') === -1;
+      if (seen.has(norm)) {
+        // Keep the camelCase spelling if a snake_case duplicate was recorded first.
+        if (camel) {
+          for (var i = 0; i < out.length; i++) {
+            if (normalizeStatKey(out[i]) === norm) { out[i] = key; break; }
+          }
+        }
+        return;
+      }
+      seen.add(norm);
+      out.push(key);
+    });
+    return out;
+  }
+
   // Best-effort grouping of stat keys for the options-page checkbox grid.
   var STAT_CATEGORIES = [
     { id: 'physical', label: 'Physical', keys: ['acceleration', 'sprintSpeed', 'speed', 'pace', 'stamina', 'strength', 'jumping', 'agility', 'balance', 'reactions', 'fitness'] },
-    { id: 'attacking', label: 'Attacking', keys: ['finishing', 'shooting', 'shotPower', 'longShots', 'positioning', 'volleys', 'penalties', 'heading', 'headingAccuracy'] },
+    { id: 'attacking', label: 'Attacking', keys: ['finishing', 'shooting', 'shotPower', 'longShots', 'attackPositioning', 'positioning', 'volleys', 'penalties', 'heading', 'headingAccuracy'] },
     { id: 'passing', label: 'Passing', keys: ['shortPassing', 'longPassing', 'passing', 'vision', 'crossing', 'curve', 'freeKicks', 'freeKickAccuracy'] },
     { id: 'dribbling', label: 'Dribbling', keys: ['ballControl', 'dribbling', 'composure'] },
-    { id: 'defending', label: 'Defending', keys: ['marking', 'defensiveAwareness', 'standingTackle', 'slidingTackle', 'interceptions', 'defending', 'defence'] },
+    { id: 'defending', label: 'Defending', keys: ['marking', 'defensiveAwareness', 'defensivePositioning', 'standingTackle', 'slidingTackle', 'interceptions', 'defending', 'defence'] },
     { id: 'goalkeeping', label: 'Goalkeeping', keys: ['gkDiving', 'gkHandling', 'gkKicking', 'gkReflexes', 'gkPositioning', 'gkSpeed', 'diving', 'handling', 'kicking', 'reflexes'] }
   ];
 
@@ -38,18 +106,34 @@
     return v !== null && typeof v === 'object' && !Array.isArray(v);
   }
 
-  // Collect finite numeric leaves from an object into a flat { key: number } map.
-  // Recurses up to `depth` levels so a nested category structure still yields its leaves.
-  function collectNumbers(obj, out, depth) {
+  // Coerce a value to a finite number, accepting numeric strings ("83" → 83) as emitted by the
+  // players-public `detailedStats` leaves. Returns null for anything that is not a finite number.
+  function coerceNumber(v) {
+    if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+    if (typeof v === 'string' && v.trim() !== '') {
+      var n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  }
+
+  // Collect finite numeric leaves from an object into a flat { key: number } map, coercing
+  // numeric strings. Recurses up to `depth` levels so a nested category structure still yields
+  // its leaves. `null`/non-numeric branches (e.g. detailedStats.goalkeeper === null) are skipped.
+  // `parentKey` is the key of the object currently being descended into; it lets us canonicalise
+  // category-scoped leaves (e.g. a bare `positioning` under `shooting` -> `attackPositioning`).
+  function collectNumbers(obj, out, depth, parentKey) {
     if (!isPlainObject(obj) || depth < 0) return out;
     var keys = Object.keys(obj);
     for (var i = 0; i < keys.length; i++) {
       var k = keys[i];
       var v = obj[k];
-      if (typeof v === 'number' && Number.isFinite(v)) {
-        if (!(k in out)) out[k] = v;
+      var num = coerceNumber(v);
+      if (num !== null) {
+        var canon = canonicalLeafKey(parentKey, k);
+        if (!(canon in out)) out[canon] = num;
       } else if (isPlainObject(v)) {
-        collectNumbers(v, out, depth - 1);
+        collectNumbers(v, out, depth - 1, k);
       }
     }
     return out;
@@ -187,6 +271,8 @@
   root.statMath = {
     resolveStatDict: resolveStatDict,
     discoverStatKeys: discoverStatKeys,
+    isExcludedStatKey: isExcludedStatKey,
+    displayStatKeys: displayStatKeys,
     inGameSum: inGameSum,
     profileSum: profileSum,
     sortByColumn: sortByColumn,

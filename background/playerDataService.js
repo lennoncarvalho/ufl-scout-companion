@@ -1,4 +1,4 @@
-// PlayerDataService — lazy fetch of /api/players/{id} with TTL cache + LRU + best-effort de-dup.
+// PlayerDataService — lazy fetch of /api/players-public/{id} with TTL cache + LRU + best-effort de-dup.
 // The persistent source of truth is chrome.storage.local.playerCache; the in-flight Map is an
 // in-memory optimisation only and is safe to lose if the service worker terminates (skill rule #7).
 import { STORAGE_KEYS, UFLSCOUT_ORIGIN } from './storageKeys.js';
@@ -7,11 +7,17 @@ const TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 const MAX_ENTRIES = 500;
 const CONCURRENCY = 4;
 
+// Cache schema version. Bump this whenever the shape of the cached player payload changes so
+// that stale-shaped entries are auto-invalidated on the next read (the ids stay the same, only
+// the payload changes). v2 = switched from /api/players/{id} to /api/players-public/{id}.
+const SCHEMA_VERSION = 2;
+
 // Best-effort de-duplication of concurrent fetches for the same id (NOT persisted).
 const inFlight = new Map();
 
 function isFresh(entry) {
-  return !!entry && typeof entry.fetchedAt === 'number' && (Date.now() - entry.fetchedAt) < TTL_MS;
+  return !!entry && entry.v === SCHEMA_VERSION &&
+    typeof entry.fetchedAt === 'number' && (Date.now() - entry.fetchedAt) < TTL_MS;
 }
 
 async function readCache() {
@@ -22,7 +28,7 @@ async function readCache() {
 // Persist one player, then evict the oldest entries if we exceed the LRU cap.
 async function writeCacheEntry(id, data) {
   const cache = await readCache();
-  cache[id] = { fetchedAt: Date.now(), data };
+  cache[id] = { fetchedAt: Date.now(), v: SCHEMA_VERSION, data };
 
   const ids = Object.keys(cache);
   if (ids.length > MAX_ENTRIES) {
@@ -35,7 +41,7 @@ async function writeCacheEntry(id, data) {
 }
 
 async function fetchPlayer(id) {
-  const url = `${UFLSCOUT_ORIGIN}/api/players/${id}`;
+  const url = `${UFLSCOUT_ORIGIN}/api/players-public/${id}`;
   const response = await fetch(url, { credentials: 'omit' });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
