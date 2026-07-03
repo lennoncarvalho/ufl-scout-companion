@@ -219,7 +219,15 @@
     if (row.image) {
       const img = el('img', {class: 'uflx-modal-card-img', src: row.image, alt: row.name, loading: 'lazy'});
       img.addEventListener('error', function () { img.style.display = 'none'; });
-      const imgContainer = el('div', {class: 'uflx-modal-img-holder'}, [img]);
+      // Anchor (opens the original UFL Scout player page in a new tab) styled to keep the
+      // previous DIV's block layout so the card visuals are unchanged. Same class as before.
+      const imgContainer = el('a', {
+        class: 'uflx-modal-img-holder',
+        href: 'https://uflscout.com/players/' + row.id,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+        title: 'Open ' + row.name + ' on UFL Scout'
+      }, [img]);
       playerCellChildren.push(imgContainer);
     }
     playerCellChildren.push(el('span', { class: 'uflx-modal-name', text: row.name }));
